@@ -19,6 +19,9 @@ extern "C"{
 
 RadixSort	*sorter;
 
+static uint	maxThreads	=	16384;
+static uint	numThreads	=	256;
+
 void cudaInit(){
 	
 	printf("Init cuda device...\n");
@@ -84,12 +87,17 @@ void calcHash(uint * gridParticleHash,
 			  float *pos,
 			  uint	numParticles){
 
-	uint	numThreads, numBlocks;
+	dim3	dimBlock(numThreads, 1);
+	dim3	dimGrid;
+	if(numParticles > maxThreads){
+		dimGrid.y	=	numParticles / maxThreads;
+		dimGrid.x	=	maxThreads / numThreads;
+	}else{
+		dimGrid.y	=	1;
+		dimGrid.x	=	numParticles / numThreads;
+	}
 
-	numThreads	=	256;
-	numBlocks	=	numParticles / numThreads;
-
-	calcHashD<<<numBlocks, numThreads>>>(gridParticleHash,
+	calcHashD<<<dimGrid, dimBlock>>>(gridParticleHash,
 										 gridParticleIndex,
 										 (float4 *) pos,
 										 numParticles);
@@ -106,18 +114,22 @@ void reorderDataAndFindCellStart(uint 	*cellStart,
 								 uint	numParticles,
 								 uint	numCells){
 	
-	uint	numThreads, numBlocks;
-	
-	numThreads	=	256;
-	numBlocks	=	numParticles / numThreads;
-
+	dim3	dimBlock(numThreads, 1);
+	dim3	dimGrid;
+	if(numParticles > maxThreads){
+		dimGrid.y	=	numParticles / maxThreads;
+		dimGrid.x	=	maxThreads / numThreads;
+	}else{
+		dimGrid.y	=	1;
+		dimGrid.x	=	numParticles / numThreads;
+	}
 	cutilSafeCall(cudaMemset(cellStart, 0xffffffff, numCells * sizeof(uint)));
 
 	cutilSafeCall(cudaBindTexture(0, oldPosTex, oldPos, numParticles * sizeof(float4)));
 
 	uint	smemSize	=	sizeof(uint) * (numThreads + 1);
 
-	reorderDataAndFindCellStartD<<< numBlocks, numThreads, smemSize>>>(
+	reorderDataAndFindCellStartD<<< dimGrid, dimBlock, smemSize>>>(
 		cellStart,
 		cellEnd,
 		(float4 *) sortedPos,
@@ -140,12 +152,17 @@ void cudaForceEvaluateShortrange(float	*gravAccel,
 	cutilSafeCall(cudaBindTexture(0, cellStartTex, cellStart, numCells * sizeof(uint)));
 	cutilSafeCall(cudaBindTexture(0, cellEndTex, cellEnd, numCells * sizeof(uint)));
 
-	uint	numThreads, numBlocks;
+	dim3	dimBlock(numThreads, 1);
+	dim3	dimGrid;
+	if(numParticles > maxThreads){
+		dimGrid.y	=	numParticles / maxThreads;
+		dimGrid.x	=	maxThreads / numThreads;
+	}else{
+		dimGrid.y	=	1;
+		dimGrid.x	=	numParticles / numThreads;
+	}
 
-	numThreads	=	256;
-	numBlocks	=	numParticles / numThreads;
-
-	cudaForceEvaluateShortrangeD<<<numBlocks, numThreads>>>((float4 *)gravAccel,
+	cudaForceEvaluateShortrangeD<<<dimGrid, dimBlock>>>((float4 *)gravAccel,
 															(float4 *)sortedPos,
 															gridParticleIndex,
 															cellStart,

@@ -95,7 +95,8 @@ void calcHashD(uint *gridParticleHash,
 			   float4	*pos,
 			   uint	numParticles){
 
-	uint	index	=	blockIdx.x * blockDim.x + threadIdx.x;
+	uint	index	=	blockIdx.y * gridDim.x * blockDim.x 
+						+ blockIdx.x * blockDim.x + threadIdx.x;
 	if(index >= numParticles)
 		return;
 	
@@ -127,7 +128,8 @@ void reorderDataAndFindCellStartD(uint	*cellStart,
 								  uint	numParticles){
 	extern __shared__ uint	sharedHash[];
 	
-	uint index	=	blockIdx.x * blockDim.x + threadIdx.x;
+	uint	index	=	blockIdx.y * gridDim.x * blockDim.x 
+						+ blockIdx.x * blockDim.x + threadIdx.x;
 	if(index >= numParticles)
 		return;
 	
@@ -164,7 +166,8 @@ void cudaForceEvaluateShortrangeD(float4 *gravAccel,
 								  uint	*cellStart,
 								  uint	*cellEnd,
 								  uint	numParticles){
-	uint index	=	blockIdx.x * blockDim.x + threadIdx.x;
+	uint	index	=	blockIdx.y * gridDim.x * blockDim.x 
+						+ blockIdx.x * blockDim.x + threadIdx.x;
 	if(index >= numParticles)
 		return;
 
