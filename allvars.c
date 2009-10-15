@@ -18,4 +18,15 @@ int			* Nextnode;
 int			* Father;
 EXTNODE		* Extnodes;
 EXTNODE_BASE	* Extnodes_base;
-int			* Father;
+
+float	*hPos;
+float	*hGravAccel;
+
+float	*dPos;
+float	*dGravAccel;
+NODE	*dNodes;
+NODE_BASE	*dNodes_base;
+int		*dNextnode;
+int		*dFather;
+EXTNODE	*Extnodes;
+EXTNODE_BASE	*Extnodes_base;

@@ -24,6 +24,8 @@
 #define	ASMTH	1.25
 #define	RCUT	4.5
 
+#define	NTAB	1000
+
 #define	DRIFT_TABLE_LENGTH	1000
 #define	MAXLEN_OUTPUTLIST	500
 #define	MAXLEN_FILENAME		250
@@ -117,6 +119,25 @@ typedef	struct	global_data{
 
 }ALL;
 
+typedef struct tagSimParam{
+	float	shortrange_table[NTAB];
+	float	boxsize;
+	float	boxhalf;
+	float	to_grid_fac;
+	float	rcut;
+	float	rcut2;
+	float	asmth;
+	float	asmthfac;
+	float	mass;
+	float	G;
+}SIMPARAM;
+
+typedef struct tagSoftParam{
+	float	h;
+	float	h_inv;
+	float	h3_inv;
+}SOFTPARAM;
+
 typedef struct tagNODE{
 	FLOAT	len;
 	FLOAT	center[3];
@@ -152,6 +173,19 @@ extern	int			* Nextnode;
 extern	int			* Father;
 extern	EXTNODE		* Extnodes;
 extern	EXTNODE_BASE	* Extnodes_base;
-extern	int			* Father;
+
+/*	CPU data	*/
+extern	float	*hPos;
+extern	float	*hGravAccel;
+
+/*	GPU data	*/
+extern	float	*dPos;
+extern	float	*dGravAccel;
+extern	NODE	*dNodes;
+extern	NODE_BASE	*dNodes_base;
+extern	int		*dNextnode;
+extern	int		*dFather;
+extern	EXTNODE	*Extnodes;
+extern	EXTNODE_BASE	*Extnodes_base;
 
 #endif

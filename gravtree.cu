@@ -2,14 +2,21 @@
 #include	<stdlib.h>
 #include	<math.h>
 
+#include	<cuda.h>
+#include	<cuda_runtime.h>
+
 #include	"allvars.h"
 #include	"proto.h"
 
 #define NEAREST(x) (((x)>boxhalf)?((x)-boxsize):(((x)<-boxhalf)?((x)+boxsize):(x)))
 
-static	int		last;
+extern	"C"{
 
-#define	NTAB	1000
+static	SIMPARAM	hSimParam;
+
+static	SOFTPARAM	hSoftParam;
+
+static	int		last;
 
 static float	shortrange_table[NTAB];
 
@@ -34,6 +41,10 @@ void set_softenings(void){
 	h	=	All.ForceSoftening;
 	h_inv	=	1.0 / h;
 	h3_inv	=	h_inv * h_inv * h_inv;
+
+	hSoftParam.h	=	h;
+	hSoftParam.h_inv	=	h_inv;
+	hSoftParam.h3_inv	=	h3_inv;
 }
 
 void gravity_tree(void){
@@ -217,6 +228,18 @@ void force_treeallocate(int maxnodes, int maxpart){
 	printf("to_grid_fac: %g\tasmth: %g\trcut: %g\n", 
 			to_grid_fac, asmth, rcut);
 
+	hPos	=	(float *)malloc(sizeof(float) * 4 * NumPart);
+	if(hPos == NULL){
+		printf("failed to allocate memory for hPos!\n");
+		exit(1);
+	}
+
+	hGravAccel	=	(float *)malloc(sizeof(float) * 4 * NumPart);
+
+	int	memSize	=	sizeof(float) * 4 * NumPart;
+
+	cudaMalloc((void **) &dPos, memSize);
+	cudaMalloc((void **) &dGravAccel, memSize);
 
 }
 
@@ -469,5 +492,4 @@ void force_update_node_recursive(int no, int sib, int father){
 	}
 }
 
-
-
+}
