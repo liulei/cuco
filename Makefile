@@ -1,6 +1,6 @@
 
-#OPT			+=	-DTREE
-OPT			+=	-DLINKLIST
+OPT			+=	-DTREE
+#OPT			+=	-DLINKLIST
 
 CC			=	gcc
 OPTIMIZE	=	-O2	-W -Wall
