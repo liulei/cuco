@@ -1,5 +1,5 @@
-#ifdef __cplusplus
-extern "C"{
+#ifndef	ALLVARS_H
+#include	"allvars.h"
 #endif
 
 void	read_parameter_file(void);
@@ -28,15 +28,21 @@ double	get_gravkick_factor(int time0, int time1);
 void	savepositions(int num);
 int		read_outputlist(char * fname);
 void	long_range_force(void);
-void	gravity_linklist(void);
-void	gravity_linklist_cuda(void);
 void	pm_init_periodic_allocate(void);
 void	pmforce_periodic(void);
 void	pm_init_periodic_free(void);
-void	linklist_init(void);
-void	force_evaluate_shortrange(int target);
 int		get_timestep(int p);
 
-#ifdef __cplusplus
-}
+#ifdef	LINKLIST
+void	gravity_linklist(void);
+void	linklist_init(void);
+void	force_evaluate_shortrange(int target);
+#endif
+
+#ifdef	TREE
+void	gravity_tree(void);
+void	force_treeallocate(int maxnodes, int maxpart);
+void	force_treebuild(int npart);
+void	force_treeevaluate_shortrange(int target);
+void	force_update_node_recursive(int no, int sib, int father);
 #endif

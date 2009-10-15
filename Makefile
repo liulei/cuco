@@ -1,64 +1,41 @@
-# If we want to use cuda gramma, compiler should be switched to nvcc
+
+#OPT			+=	-DTREE
+OPT			+=	-DLINKLIST
 
 CC			=	gcc
-NVCC		=	nvcc
-
-#OPTIMIZE	=	-O2 -W -Wall
-OPTIMIZE	=	-O2
-
+OPTIMIZE	=	-O2	-W -Wall
 GSL_INCL	=	-I/usr/local/include
 GSL_LIBS	=	-L/usr/local/lib
+FFTW_INCL	=	-I/usr/local/include
+FFTW_LIBS	=	-L/usr/local/lib
 
-CUFFT_INCL	=	-I/usr/local/cuda/include
-CUFFT_LIBS	=	-L/usr/local/cuda/lib
-
-CUTIL_INCL	=	-I/home/liulei/NVIDIA_CUDA_SDK/common/inc
-CUTIL_LIBS	=	-L/home/liulei/NVIDIA_CUDA_SDK/lib
-
-CUDPP_INCL	=	-I/home/liulei/NVIDIA_CUDA_SDK/common/inc
-CUDPP_LIBS	=	-L/home/liulei/NVIDIA_CUDA_SDK/common/lib/linux
-
-OPTIONS		=	$(OPTIMIZE)
+OPTIONS		=	$(OPTIMIZE) $(OPT)
 
 EXEC		=	cuco
 
-C_SOURCES	=	allvars.c begrun.c init.c read_ic.c \
-				main.c driftfac.c longrange.c pm_periodic.c \
-				run.c predict.c accel.c io.c timestep.c
+OBJS		=	allvars.o begrun.o init.o read_ic.o \
+				main.o driftfac.o longrange.o pm_periodic.o \
+				run.o predict.o accel.o io.o timestep.o
 
-C_OBJS		=	$(patsubst %.c, %.c.o, $(C_SOURCES))
+ifeq (TREE, $(findstring TREE, $(OPT)))
+	OBJS	+=	gravtree.o
+endif
 
-CPP_SOURCES	=	gravlist.cpp
+ifeq (LINKLIST, $(findstring LINKLIST, $(OPT)))
+	OBJS	+=	gravlist.o
+endif
 
-CPP_OBJS	=	$(patsubst %.cpp, %.cpp.o, $(CPP_SOURCES))
+INCL		=	allvars.h proto.h Makefile
 
-CU_SOURCES	=	gravlist.cu radixsort.cu
-
-CU_OBJS		=	$(patsubst %.cu, %.cu.o, $(CU_SOURCES))
-
-OBJS		=	$(C_OBJS) $(CPP_OBJS) $(CU_OBJS)
-
-INCL		=	allvars.h proto.h proto.cuh radixsort.h Makefile
-
-CFLAGS		=	$(OPTIONS) $(GSL_INCL) $(CUFFT_INCL) \
-				$(CUTIL_INCL) $(CUDPP_INCL)
+CFLAGS		=	$(OPTIONS) $(GSL_INCL) $(FFTW_INCL)
 
 LIBS		=	$(GSL_LIBS) -lgsl -lgslcblas -lm \
-				$(CUFFT_LIBS) -lcudart -lcufft \
-				$(CUTIL_LIBS) -lcutil \
-				$(CUDPP_LIBS) -lcudpp
+				$(FFTW_LIBS) -lrfftw -lfftw
 
-$(EXEC)	:	$(OBJS) $(INCL)
+$(EXEC)	:	$(OBJS)
 	$(CC) $(OBJS) $(LIBS) -o $(EXEC)
 
-%.c.o	:	%.c
-	$(CC) -c $^ $(CFLAGS) $(LIBS) -o $@
-
-%.cpp.o	:	%.cpp
-	$(CC) -c $^ $(CFLAGS) $(LIBS) -o $@
-
-%.cu.o	:	%.cu
-	$(NVCC) -c $^ $(CFLAGS) $(LIBS) -o $@
+$(OBJS)	:	$(INCL)
 
 clean:
-	rm -f $(C_OBJS) $(CU_OBJS) $(CPP_OBJS) $(EXEC) *.linkinfo
+	rm -f $(OBJS) $(EXEC)

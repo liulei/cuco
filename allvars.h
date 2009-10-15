@@ -6,7 +6,7 @@
 
 #include	<stdio.h>
 
-#define	PMGRID			64
+#define	PMGRID		128
 
 #define	TIMEBASE		(1<<28)
 
@@ -23,8 +23,6 @@
 
 #define	ASMTH	1.25
 #define	RCUT	4.5
-
-#define	NTAB	1000
 
 #define	DRIFT_TABLE_LENGTH	1000
 #define	MAXLEN_OUTPUTLIST	500
@@ -58,8 +56,8 @@ typedef struct	io_header{
 
 typedef	struct	global_data{
 	int		NumPart;
-	float	BoxSize;
-	float	Mass;
+	double	BoxSize;
+	double	Mass;
 
 /*	Some parameter in system units
  */
@@ -70,18 +68,18 @@ typedef	struct	global_data{
 	double	UnitLength_in_m;
 	double	UnitTime_in_Megayears;
 
-	float	Hubble;
-	float	Omega0;
-	float	OmegaLambda;
-	float	OmegaBaryon;
-	float	HubbleParam;
+	double	Hubble;
+	double	Omega0;
+	double	OmegaLambda;
+	double	OmegaBaryon;
+	double	HubbleParam;
 
 /*	Time parameter
  */
-	float	Time;
-	float	TimeBegin;
-	float	TimeStep;
-	float	TimeMax;
+	double	Time;
+	double	TimeBegin;
+	double	TimeStep;
+	double	TimeMax;
 
 	double	Timebase_interval;
 	int		Ti_Current;
@@ -90,24 +88,26 @@ typedef	struct	global_data{
 	int		PM_Ti_endstep;
 	int		PM_Ti_begstep;
 
-	float	Asmth;	/* Long-range/short-range split */
-	float	Rcut;	/* Maximum radius for which short range force is evaluated */
+	double	Asmth;	/* Long-range/short-range split */
+	double	Rcut;	/* Maximum radius for which short range force is evaluated */
+	
+	double	ErrTolTheta;
 
-	float	ErrTolIntAccuracy;
+	double	ErrTolIntAccuracy;
 
-	float	MaxSizeTimestep;
-	float	MinSizeTimestep;
+	double	MaxSizeTimestep;
+	double	MinSizeTimestep;
 
-	float	SofteningHalo;
-	float	SofteningHaloMaxPhys;
-	float	SofteningTable;
-	float	ForceSoftening;
+	double	SofteningHalo;
+	double	SofteningHaloMaxPhys;
+	double	SofteningTable;
+	double	ForceSoftening;
 
 	int		NumCurrentTiStep;
 
 	int		SnapshotFileCount;
 
-	float	OutputListTimes[MAXLEN_OUTPUTLIST];
+	double	OutputListTimes[MAXLEN_OUTPUTLIST];
 	int		OutputListLength;
 
 	char	InitCondFile[MAXLEN_FILENAME];
@@ -117,30 +117,41 @@ typedef	struct	global_data{
 
 }ALL;
 
-extern	unsigned int			NumPart;
+typedef struct tagNODE{
+	FLOAT	len;
+	FLOAT	center[3];
+
+	union{
+		int	suns[8];
+		struct{
+			FLOAT	s[3];
+			FLOAT	mass;
+			int		bitflags;
+			int		sibling;
+			int		nextnode;
+			int		father;
+		}d;
+	}u;
+} NODE, NODE_BASE;
+
+typedef struct tagEXTNODE{
+	FLOAT	vs[3];
+}EXTNODE, EXTNODE_BASE;
+
+extern	int			NumPart;
 extern	PARTICLE *	P;
 extern	HEADER		header;
 extern	ALL			All;
-extern	float		DriftTable[DRIFT_TABLE_LENGTH];
-extern	float		GravKickTable[DRIFT_TABLE_LENGTH];
-
-extern	unsigned int	numParticles;
-extern	unsigned int	numGridCells;
-
-/*	CPU data	*/
-extern	float	*hPos;
-extern	float	*hGravAccel;
-
-/*	GPU data	*/
-extern	float	*dOldPos;
-extern	float	*dSortedPos;
-extern	float	*dGravAccel;
-
-extern	unsigned int	*dGridParticleHash;
-extern	unsigned int	*dGridParticleIndex;
-extern	unsigned int	*dCellStart;
-extern	unsigned int	*dCellEnd;
-
-//extern	RadixSort		*sorter;
+extern	double		DriftTable[DRIFT_TABLE_LENGTH];
+extern	double		GravKickTable[DRIFT_TABLE_LENGTH];
+extern	int			TreeReconstructFlag;
+extern	NODE		* Nodes;
+extern	NODE_BASE	* Nodes_base;
+extern	int			MaxNodes;
+extern	int			* Nextnode;
+extern	int			* Father;
+extern	EXTNODE		* Extnodes;
+extern	EXTNODE_BASE	* Extnodes_base;
+extern	int			* Father;
 
 #endif

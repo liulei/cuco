@@ -14,20 +14,8 @@ void read_ic(char * fname){
 		exit(1);
 	}
 
-	printf("sizeof(header): %d\n", sizeof(HEADER));
-
 	fread(&header,sizeof(HEADER),1,fp);
-/*	
-	fread(&header.NumPart, sizeof(int), 1, fp);
-	fread(&header.Mass, sizeof(float), 1, fp);
-	fread(&header.Time, sizeof(float), 1, fp);
-	fread(&header.Redshift, sizeof(float), 1, fp);
-	fread(&header.BoxSize, sizeof(float), 1, fp);
-	fread(&header.Omega0, sizeof(float), 1, fp);
-	fread(&header.OmegaLambda, sizeof(float), 1, fp);
-	fread(&header.HubbleParam, sizeof(float), 1, fp);
-*/
-
+	
 	NumPart	=	header.NumPart;
 	P	=	(PARTICLE *)malloc(sizeof(PARTICLE)*NumPart);
 	fread(P,sizeof(PARTICLE),NumPart,fp);

@@ -13,15 +13,15 @@ void begrun(void){
 
 	set_units();
 
-	init();
-
-	cudaInit();
-
 	long_range_init();
 
-	linklist_init();
+	init();
 
 	init_drift_table();
+
+#ifdef	LINKLIST
+	linklist_init();
+#endif
 
 	All.Ti_nextoutput	=	find_next_outputtime(All.Ti_Current);
 }
@@ -41,6 +41,8 @@ void read_parameter_file(void){
 
 	All.BoxSize		=	10000.0;
 
+	All.ErrTolTheta	=	0.5;
+
 	All.ErrTolIntAccuracy	=	0.025;
 
 	All.MaxSizeTimestep	=	0.03;
@@ -56,7 +58,7 @@ void read_parameter_file(void){
 
 	strcpy(All.InitCondFile, "/home/liulei/program/N-body/ic/ic_32.cuco");
 	strcpy(All.OutputDir, "output_32");
-	strcpy(All.SnapshotFileBase, "cuda_32");
+	strcpy(All.SnapshotFileBase, "cuco_32");
 	strcpy(All.OutputListFilename, "output_32/list_32.txt");
 
 	read_outputlist(All.OutputListFilename);
@@ -71,7 +73,7 @@ void set_units(void){
 
 	printf("Hubble (internal units) = %g\n", All.Hubble);
 	printf("G (internal units) = %g\n", All.G);
-	printf("UnitMass_in_kg = %g\n", All.UnitMass_in_kg);
+	printf("UnitTime_in_kg = %g\n", All.UnitMass_in_kg);
 	printf("UnitTime_in_s = %g\n", All.UnitTime_in_s);
 	printf("UnitVelocity_in_m_per_s = %g\n",All.UnitVelocity_in_m_per_s);
 
@@ -88,7 +90,7 @@ int read_outputlist(char * fname){
 	All.OutputListLength	=	0;
 
 	do{
-		if(fscanf(fp, " %g ", &All.OutputListTimes[All.OutputListLength]) == 1)
+		if(fscanf(fp, " %lg ", &All.OutputListTimes[All.OutputListLength]) == 1)
 			All.OutputListLength++;
 		else
 			break;
