@@ -5,18 +5,27 @@
 #include	<cuda.h>
 #include	<cuda_runtime.h>
 
+extern "C"{
 #include	"allvars.h"
 #include	"proto.h"
+}
+
+#include	"gravtree.h"
 
 #define NEAREST(x) (((x)>boxhalf)?((x)-boxsize):(((x)<-boxhalf)?((x)+boxsize):(x)))
 
 extern	"C"{
+
+static	int	maxThreads	=	32768;
+static	int	numThreads	=	256;
 
 static	SIMPARAM	hSimParam;
 
 static	SOFTPARAM	hSoftParam;
 
 static	int		last;
+
+static	int		numnodes;
 
 static float	shortrange_table[NTAB];
 
@@ -29,6 +38,11 @@ static double	rcut, rcut2, asmth, asmthfac;
 static double	h, h_inv, h3_inv;
 
 void set_softenings(void){
+
+	printf("Boxsize in soft: %g\n", All.BoxSize);
+	printf("Numpart in soft: %d\n", All.NumPart);
+	printf("Mass in soft: %g\n", All.Mass);
+	printf("G in soft: %g\n", All.G);
 
 	if(All.SofteningHalo * All.Time > All.SofteningHaloMaxPhys){
 		All.SofteningTable	=	All.SofteningHaloMaxPhys / All.Time;
@@ -45,6 +59,8 @@ void set_softenings(void){
 	hSoftParam.h	=	h;
 	hSoftParam.h_inv	=	h_inv;
 	hSoftParam.h3_inv	=	h3_inv;
+
+	cudaMemcpyToSymbol(dSoftParam, &hSoftParam, sizeof(SOFTPARAM));
 }
 
 void gravity_tree(void){
@@ -58,6 +74,10 @@ void gravity_tree(void){
 //		TreeReconstructFlag	=	0;
 	}
 
+	copyTreeToDevice();
+	copyPosToDevice();
+
+/*
 	int	i;
 
 	printf("Calculating short range force using tree method...\n");
@@ -67,6 +87,21 @@ void gravity_tree(void){
 			force_treeevaluate_shortrange(i);
 		}
 	}
+*/
+	dim3	dimBlock(numThreads, 1);
+	dim3	dimGrid;
+
+	if(NumPart > maxThreads){
+		dimGrid.y	=	NumPart / maxThreads;
+		dimGrid.x	=	maxThreads / numThreads;
+	}else{
+		dimGrid.y	=	1;
+		dimGrid.x	=	NumPart / numThreads;
+	}
+
+	force_treeevaluate_shortrange_device<<<dimGrid, dimBlock>>>(NumPart);
+
+	copyAccelFromDevice();
 
 	printf("done!\n");
 
@@ -214,6 +249,8 @@ void force_treeallocate(int maxnodes, int maxpart){
 		shortrange_table[i]	=	erfc(u) + 2.0 * u / sqrt(M_PI) * exp(-u * u);
 	}
 
+	printf("boxsize in cu: %g\n", All.BoxSize);
+
 	to_grid_fac	=	PMGRID / All.BoxSize;
 
 	rcut	=	All.Rcut;
@@ -226,7 +263,7 @@ void force_treeallocate(int maxnodes, int maxpart){
 	boxhalf	=	boxsize / 2.0;
 
 	printf("to_grid_fac: %g\tasmth: %g\trcut: %g\n", 
-			to_grid_fac, asmth, rcut);
+			to_grid_fac, All.Asmth, All.Rcut);
 
 	hPos	=	(float *)malloc(sizeof(float) * 4 * NumPart);
 	if(hPos == NULL){
@@ -240,6 +277,31 @@ void force_treeallocate(int maxnodes, int maxpart){
 
 	cudaMalloc((void **) &dPos, memSize);
 	cudaMalloc((void **) &dGravAccel, memSize);
+
+	cudaMalloc((void **)dNodes, sizeof(NODE) * MaxNodes);
+	dNodes	-=	NumPart;
+
+	cudaMalloc((void **)dExtnodes, sizeof(EXTNODE) * MaxNodes);
+	dExtnodes	-=	NumPart;
+
+	cudaMalloc((void **)dNextnode, sizeof(int) * NumPart);
+	cudaMalloc((void **)dFather, sizeof(int) * NumPart);
+
+	for(i = 0; i < NTAB; ++i){
+		hSimParam.shortrange_table[i]	=	shortrange_table[i];
+	}
+
+	hSimParam.boxsize	=	boxsize;
+	hSimParam.boxhalf	=	boxhalf;
+	hSimParam.to_grid_fac	=	to_grid_fac;
+	hSimParam.rcut		=	rcut;
+	hSimParam.rcut2		=	rcut2;
+	hSimParam.asmth		=	asmth;
+	hSimParam.asmthfac	=	asmthfac;
+	hSimParam.mass		=	header.Mass;
+	hSimParam.G			=	All.G;
+
+	cudaMemcpyToSymbol(dSimParam, &hSimParam, sizeof(SIMPARAM));
 
 }
 
@@ -489,6 +551,46 @@ void force_update_node_recursive(int no, int sib, int father){
 
 		if(no < All.NumPart)
 			Father[no]	=	father;
+	}
+}
+
+void copyTreeToDevice(){
+
+	cudaMemcpy((char *) &dNodes[NumPart], (void *) &Nodes[NumPart], numnodes * sizeof(NODE), cudaMemcpyHostToDevice);
+	
+	cudaMemcpy((char *) &dExtnodes[NumPart], (void *) &Extnodes[NumPart], numnodes * sizeof(EXTNODE), cudaMemcpyHostToDevice);
+
+	cudaMemcpy((char *) dNextnode, (void *)Nextnode, NumPart * sizeof(int), cudaMemcpyHostToDevice);
+
+	cudaMemcpy((char *) dFather, (void *)Father, NumPart * sizeof(int), cudaMemcpyHostToDevice);
+
+}
+
+void copyPosToDevice(){
+	
+	float4	*hPos4	=	(float4 *)hPos;
+	
+	int	i;
+	for(i = 0; i < NumPart; ++i){
+		hPos4[i].x	=	P[i].Pos[0];
+		hPos4[i].y	=	P[i].Pos[1];
+		hPos4[i].z	=	P[i].Pos[2];
+	}
+
+	cudaMemcpy((char *)dPos, (void *)hPos, NumPart * sizeof(float4), cudaMemcpyHostToDevice);
+}
+
+void copyAccelFromDevice(){
+
+	cudaMemcpy((void *)hGravAccel, (char *)dGravAccel, NumPart * sizeof(float4), cudaMemcpyDeviceToHost);
+
+	float4	*hGravAccel4	=	(float4 *)hGravAccel;
+
+	int	i;
+	for(i = 0; i < NumPart; ++i){
+		P[i].GravAccel[0]	=	hGravAccel4[i].x;
+		P[i].GravAccel[1]	=	hGravAccel4[i].y;
+		P[i].GravAccel[2]	=	hGravAccel4[i].z;
 	}
 }
 

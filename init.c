@@ -17,8 +17,10 @@ void init(void){
 	All.Timebase_interval	=	(log(All.TimeMax)-log(All.TimeBegin)) / TIMEBASE;
 
 	a3	=	All.Time * All.Time * All.Time;
-
+	
 	set_softenings();
+
+	printf("Boxsize in after soft: %g\n", All.BoxSize);
 
 	All.NumCurrentTiStep	=	0;
 	All.SnapshotFileCount	=	0;

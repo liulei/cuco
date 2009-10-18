@@ -28,5 +28,5 @@ NODE	*dNodes;
 NODE_BASE	*dNodes_base;
 int		*dNextnode;
 int		*dFather;
-EXTNODE	*Extnodes;
-EXTNODE_BASE	*Extnodes_base;
+EXTNODE	*dExtnodes;
+EXTNODE_BASE	*dExtnodes_base;

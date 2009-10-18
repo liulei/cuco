@@ -27,7 +27,7 @@ void read_ic(char * fname){
 	All.Mass	=	header.Mass;
 
 	printf("Particle number: %d\n", NumPart);
-	printf("Boxsize(kpc/h): %f\n", header.BoxSize);
+	printf("Boxsize(kpc/h): %f\n", All.BoxSize);
 	printf("Mass(10^10/h solar mass): %f\n", header.Mass);
 	printf("Redshift: %f\n", header.Redshift);
 }

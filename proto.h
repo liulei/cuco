@@ -2,12 +2,15 @@
 #include	"allvars.h"
 #endif
 
+#ifdef __cplusplus
+extern "C"{
+#endif
+
 void	read_parameter_file(void);
 void	set_units(void);
 void	init(void);
 void	check_omega(void);
 void	read_ic(char * fname);
-void	set_softenings(void);
 void	run(void);
 void	begrun(void);
 void	long_range_init(void);
@@ -33,16 +36,18 @@ void	pmforce_periodic(void);
 void	pm_init_periodic_free(void);
 int		get_timestep(int p);
 
-#ifdef	LINKLIST
-void	gravity_linklist(void);
-void	linklist_init(void);
-void	force_evaluate_shortrange(int target);
-#endif
-
 #ifdef	TREE
+void	set_softenings(void);
 void	gravity_tree(void);
 void	force_treeallocate(int maxnodes, int maxpart);
 void	force_treebuild(int npart);
 void	force_treeevaluate_shortrange(int target);
 void	force_update_node_recursive(int no, int sib, int father);
+void	copyTreeToDevice(void);
+void	copyPosToDevice(void);
+void	copyAccelFromDevice(void);
+#endif
+
+#ifdef __cplusplus
+}
 #endif

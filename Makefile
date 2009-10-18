@@ -1,41 +1,61 @@
-
-OPT			+=	-DTREE
-#OPT			+=	-DLINKLIST
+# If we want to use cuda gramma, compiler should be switched to nvcc
 
 CC			=	gcc
-OPTIMIZE	=	-O2	-W -Wall
+NVCC		=	nvcc
+
+#OPTIMIZE	=	-O2 -W -Wall
+OPTIMIZE	=	-O2
+
 GSL_INCL	=	-I/usr/local/include
 GSL_LIBS	=	-L/usr/local/lib
-FFTW_INCL	=	-I/usr/local/include
-FFTW_LIBS	=	-L/usr/local/lib
 
-OPTIONS		=	$(OPTIMIZE) $(OPT)
+CUFFT_INCL	=	-I/usr/local/cuda/include
+CUFFT_LIBS	=	-L/usr/local/cuda/lib
+
+#CUTIL_INCL	=	-I/home/liulei/NVIDIA_CUDA_SDK/common/inc
+#CUTIL_LIBS	=	-L/home/liulei/NVIDIA_CUDA_SDK/lib
+
+#CUDPP_INCL	=	-I/home/liulei/NVIDIA_CUDA_SDK/common/inc
+#CUDPP_LIBS	=	-L/home/liulei/NVIDIA_CUDA_SDK/common/lib/linux
+
+OPTIONS		=	$(OPTIMIZE) -DTREE
 
 EXEC		=	cuco
 
-OBJS		=	allvars.o begrun.o init.o read_ic.o \
-				main.o driftfac.o longrange.o pm_periodic.o \
-				run.o predict.o accel.o io.o timestep.o
+C_SOURCES	=	allvars.c begrun.c init.c read_ic.c \
+				main.c driftfac.c longrange.c pm_periodic.c \
+				run.c predict.c accel.c io.c timestep.c
 
-ifeq (TREE, $(findstring TREE, $(OPT)))
-	OBJS	+=	gravtree.o
-endif
+C_OBJS		=	$(patsubst %.c, %.c.o, $(C_SOURCES))
 
-ifeq (LINKLIST, $(findstring LINKLIST, $(OPT)))
-	OBJS	+=	gravlist.o
-endif
+CPP_SOURCES	=	
 
-INCL		=	allvars.h proto.h Makefile
+CPP_OBJS	=	$(patsubst %.cu, %.cu.o, $(CPP_SOURCES))
 
-CFLAGS		=	$(OPTIONS) $(GSL_INCL) $(FFTW_INCL)
+CU_SOURCES	=	gravtree.cu
+
+CU_OBJS		=	$(patsubst %.cu, %.cu.o, $(CU_SOURCES))
+
+OBJS		=	$(C_OBJS) $(CPP_OBJS) $(CU_OBJS)
+
+INCL		=	allvars.h gravtree.h Makefile
+
+CFLAGS		=	$(OPTIONS) $(GSL_INCL) $(CUFFT_INCL)
 
 LIBS		=	$(GSL_LIBS) -lgsl -lgslcblas -lm \
-				$(FFTW_LIBS) -lrfftw -lfftw
+				$(CUFFT_LIBS) -lcudart -lcufft
 
-$(EXEC)	:	$(OBJS)
+$(EXEC)	:	$(OBJS) $(INCL)
 	$(CC) $(OBJS) $(LIBS) -o $(EXEC)
 
-$(OBJS)	:	$(INCL)
+%.c.o	:	%.c
+	$(CC) -c $^ $(CFLAGS) $(LIBS) -o $@
+
+%.cpp.o	:	%.cpp
+	$(CC) -c $^ $(CFLAGS) $(LIBS) -o $@
+
+%.cu.o	:	%.cu
+	$(NVCC) -c $^ $(CFLAGS) $(LIBS) -o $@
 
 clean:
-	rm -f $(OBJS) $(EXEC)
+	rm -f $(C_OBJS) $(CU_OBJS) $(CPP_OBJS) $(EXEC) *.linkinfo

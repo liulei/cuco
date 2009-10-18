@@ -6,7 +6,7 @@
 
 #include	<stdio.h>
 
-#define	PMGRID		128
+#define	PMGRID		32
 
 #define	TIMEBASE		(1<<28)
 
@@ -58,8 +58,9 @@ typedef struct	io_header{
 
 typedef	struct	global_data{
 	int		NumPart;
-	double	BoxSize;
-	double	Mass;
+	int		dummy;
+	float	BoxSize;
+	float	Mass;
 
 /*	Some parameter in system units
  */
@@ -185,7 +186,7 @@ extern	NODE	*dNodes;
 extern	NODE_BASE	*dNodes_base;
 extern	int		*dNextnode;
 extern	int		*dFather;
-extern	EXTNODE	*Extnodes;
-extern	EXTNODE_BASE	*Extnodes_base;
+extern	EXTNODE	*dExtnodes;
+extern	EXTNODE_BASE	*dExtnodes_base;
 
 #endif
