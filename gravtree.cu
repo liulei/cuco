@@ -77,6 +77,10 @@ void gravity_tree(void){
 	copyTreeToDevice();
 	copyPosToDevice();
 
+	cudaBindTexture(0, dPosTex, dPos, NumPart * sizeof(float4));
+//	cudaBindTexture(0, dNodesTex, (void *)&dNodes[NumPart], numnodes * sizeof(NODE));
+	cudaBindTexture(0, dNextnodeTex, dNextnode, NumPart * sizeof(int));
+
 	dim3	dimBlock(numThreads, 1);
 	dim3	dimGrid;
 
@@ -554,9 +558,9 @@ void copyTreeToDevice(){
 
 	printf("copy numnodes: %d\n", numnodes);
 
-	cudaMemcpy((char *) &dNodes[NumPart], (void *) &Nodes[NumPart], NumPart * sizeof(NODE), cudaMemcpyHostToDevice);
+	cudaMemcpy((char *) &dNodes[NumPart], (void *) &Nodes[NumPart], numnodes * sizeof(NODE), cudaMemcpyHostToDevice);
 	
-	cudaMemcpy((char *) &dExtnodes[NumPart], (void *) &Extnodes[NumPart], NumPart * sizeof(EXTNODE), cudaMemcpyHostToDevice);
+	cudaMemcpy((char *) &dExtnodes[NumPart], (void *) &Extnodes[NumPart], numnodes * sizeof(EXTNODE), cudaMemcpyHostToDevice);
 
 	cudaMemcpy((char *) dNextnode, (void *)Nextnode, NumPart * sizeof(int), cudaMemcpyHostToDevice);
 

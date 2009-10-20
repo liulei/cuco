@@ -3,6 +3,10 @@
 
 #define NEAREST(x) (((x)>boxhalf)?((x)-boxsize):(((x)<-boxhalf)?((x)+boxsize):(x)))
 
+texture<float4, 1, cudaReadModeElementType> dPosTex;
+//texture<NODE, 1, cudaReadModeElementType> dNodesTex;
+texture<int, 1, cudaReadModeElementType> dNextnodeTex;
+
 __constant__ SIMPARAM	dSimParam;
 
 __constant__ SOFTPARAM	dSoftParam;
@@ -27,6 +31,8 @@ __global__ void force_treeevaluate_shortrange_device(
 	float	r2, dx, dy, dz, r, fac, u;
 	float	eff_dist, dist;
 	float4	pos, pos_no, acc;
+
+	float3	test;
 	
 	float	rcut	=	dSimParam.rcut;
 	float	rcut2	=	dSimParam.rcut2;
@@ -64,33 +70,13 @@ __global__ void force_treeevaluate_shortrange_device(
 	
 	no	=	numParticles;
 
-/*
-	printf("%d: %g|%g|%g\n", index, pos.x, pos.y, pos.z);
-
-	int	i;
-	i	=	no + 333;
-	printf("no: %g|%g|%g\t%g\t%d\t%d\t%d\t%d\n", 
-			dNodes[i].u.d.s[0], 
-			dNodes[i].u.d.s[1], 
-			dNodes[i].u.d.s[2], 
-			dNodes[i].u.d.mass, 
-			dNodes[i].u.d.bitflags, 
-			dNodes[i].u.d.sibling,
-			dNodes[i].u.d.nextnode,
-			dNodes[i].u.d.father);
-*/
-	int	count	=	0;
-
 	while(no >= 0){
 
-		if(index == 0){
-			count++;
-		}
-		
 		if(no < numParticles){
 
-			pos_no	=	dPos[no];
-
+//			pos_no	=	dPos[no];
+			pos_no	=	tex1Dfetch(dPosTex, no);
+			
 			dx	=	pos_no.x - pos.x;
 			dy	=	pos_no.y - pos.y;
 			dz	=	pos_no.z - pos.z;
@@ -103,12 +89,14 @@ __global__ void force_treeevaluate_shortrange_device(
 
 			mass	=	dSimParam.mass;
 
-			no	=	dNextnode[no];
+//			no	=	dNextnode[no];
+			no	=	tex1Dfetch(dNextnodeTex, no);
 		
 		}else{
 
 			node	=	dNodes[no];
-
+//			node	=	tex1Dfetch(dNodesTex, no);
+			
 			mass	=	node.u.d.mass;
 			
 			dx	=	node.u.d.s[0] - pos.x;
