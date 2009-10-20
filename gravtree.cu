@@ -249,8 +249,6 @@ void force_treeallocate(int maxnodes, int maxpart){
 		shortrange_table[i]	=	erfc(u) + 2.0 * u / sqrt(M_PI) * exp(-u * u);
 	}
 
-	printf("boxsize in cu: %g\n", All.BoxSize);
-
 	to_grid_fac	=	PMGRID / All.BoxSize;
 
 	rcut	=	All.Rcut;
@@ -300,14 +298,7 @@ void force_treeallocate(int maxnodes, int maxpart){
 	hSimParam.ErrTolTheta	=	All.ErrTolTheta;
 	hSimParam.G			=	All.G;
 
-	printf("setting param...\n");
-
-	printf("ErrTolTheta: %g\n", hSimParam.ErrTolTheta);
-
 	cudaMemcpyToSymbol(dSimParam, &hSimParam, sizeof(SIMPARAM));
-
-	printf("param done\n");
-
 }
 
 void force_treebuild(int npart){
@@ -434,23 +425,11 @@ void force_treebuild(int npart){
 	force_update_node_recursive(All.NumPart, -1, -1);
 
 	printf("last: %d\n", last);
-	printf("numnodes: %d\n", numnodes);
 
 	if(last >= All.NumPart)
 		Nodes[last].u.d.nextnode	=	-1;
 	else
 		Nextnode[last]	=	-1;
-
-	i	=	All.NumPart + 250;
-	printf("build: %g|%g|%g\t%g\t%d\t%d\t%d\t%d\n", 
-			Nodes[i].u.d.s[0], 
-			Nodes[i].u.d.s[1], 
-			Nodes[i].u.d.s[2], 
-			Nodes[i].u.d.mass, 
-			Nodes[i].u.d.bitflags, 
-			Nodes[i].u.d.sibling,
-			Nodes[i].u.d.nextnode,
-			Nodes[i].u.d.father);
 }
 
 void force_update_node_recursive(int no, int sib, int father){
@@ -575,9 +554,9 @@ void copyTreeToDevice(){
 
 	printf("copy numnodes: %d\n", numnodes);
 
-	cudaMemcpy((char *) &dNodes[NumPart], (void *) &Nodes[NumPart], numnodes * sizeof(NODE), cudaMemcpyHostToDevice);
+	cudaMemcpy((char *) &dNodes[NumPart], (void *) &Nodes[NumPart], NumPart * sizeof(NODE), cudaMemcpyHostToDevice);
 	
-	cudaMemcpy((char *) &dExtnodes[NumPart], (void *) &Extnodes[NumPart], numnodes * sizeof(EXTNODE), cudaMemcpyHostToDevice);
+	cudaMemcpy((char *) &dExtnodes[NumPart], (void *) &Extnodes[NumPart], NumPart * sizeof(EXTNODE), cudaMemcpyHostToDevice);
 
 	cudaMemcpy((char *) dNextnode, (void *)Nextnode, NumPart * sizeof(int), cudaMemcpyHostToDevice);
 

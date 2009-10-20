@@ -36,11 +36,26 @@ __global__ void force_treeevaluate_shortrange_device(
 	float	G		=	dSimParam.G;
 	float	boxsize	=	dSimParam.boxsize;
 	float	boxhalf	=	boxsize / 2.0;
-	
+
+/*
+	printf("device parameter: \n");
+	printf("rcut: %g\n", rcut);
+	printf("rcut2: %g\n", rcut2);
+	printf("asmthfac: %g\n", asmthfac);
+	printf("mass: %g\n", mass);
+	printf("ErrTolTheta: %g\n", ErrTolTheta);
+	printf("G: %g\n", G);
+	printf("boxsize: %g\n", boxsize);
+	printf("boxhalf: %g\n", boxhalf);
+*/
 	float	h	=	dSoftParam.h;
 	float	h_inv	=	dSoftParam.h_inv;
 	float	h3_inv	=	dSoftParam.h3_inv;
-
+/*
+	printf("h: %g\n", h);
+	printf("h_inv: %g\n", h_inv);
+	printf("h3_inv: %g\n", h3_inv);
+*/
 	acc.x	=	0.0;
 	acc.y	=	0.0;
 	acc.z	=	0.0;
@@ -50,8 +65,10 @@ __global__ void force_treeevaluate_shortrange_device(
 	no	=	numParticles;
 
 /*
+	printf("%d: %g|%g|%g\n", index, pos.x, pos.y, pos.z);
+
 	int	i;
-	i	=	no + 250;
+	i	=	no + 333;
 	printf("no: %g|%g|%g\t%g\t%d\t%d\t%d\t%d\n", 
 			dNodes[i].u.d.s[0], 
 			dNodes[i].u.d.s[1], 
@@ -62,8 +79,13 @@ __global__ void force_treeevaluate_shortrange_device(
 			dNodes[i].u.d.nextnode,
 			dNodes[i].u.d.father);
 */
+	int	count	=	0;
 
 	while(no >= 0){
+
+		if(index == 0){
+			count++;
+		}
 		
 		if(no < numParticles){
 
@@ -79,6 +101,7 @@ __global__ void force_treeevaluate_shortrange_device(
 
 			r2	=	dx * dx + dy * dy + dz * dz;
 
+			mass	=	dSimParam.mass;
 
 			no	=	dNextnode[no];
 		
@@ -129,7 +152,7 @@ __global__ void force_treeevaluate_shortrange_device(
 			no	=	node.u.d.sibling;
 		}
 
-		r	=	sqrtf(r2);
+		r	=	__fsqrt_rn(r2);
 
 		if(r >= h){
 			fac	=	mass / (r2 * r);
@@ -159,6 +182,7 @@ __global__ void force_treeevaluate_shortrange_device(
 	acc.z	*=	G;
 
 	dGravAccel[index]	=	acc;
+
 }
 
 #endif
