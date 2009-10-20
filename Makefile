@@ -38,7 +38,7 @@ CU_OBJS		=	$(patsubst %.cu, %.cu.o, $(CU_SOURCES))
 
 OBJS		=	$(C_OBJS) $(CPP_OBJS) $(CU_OBJS)
 
-INCL		=	allvars.h gravtree.h Makefile
+INCL		=	allvars.h gravtree_kernel.cu Makefile
 
 CFLAGS		=	$(OPTIONS) $(GSL_INCL) $(CUFFT_INCL)
 
@@ -55,7 +55,7 @@ $(EXEC)	:	$(OBJS) $(INCL)
 	$(CC) -c $^ $(CFLAGS) $(LIBS) -o $@
 
 %.cu.o	:	%.cu
-	$(NVCC) -c $^ $(CFLAGS) $(LIBS) -o $@
+	$(NVCC) -c  $^ $(CFLAGS) $(LIBS) -o $@
 
 clean:
 	rm -f $(C_OBJS) $(CU_OBJS) $(CPP_OBJS) $(EXEC) *.linkinfo

@@ -22,7 +22,4 @@ void compute_accelerations(void){
 	gravity_tree();
 #endif
 
-#ifdef	LINKLIST
-	gravity_linklist();
-#endif
 }

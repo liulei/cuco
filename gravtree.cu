@@ -5,14 +5,11 @@
 #include	<cuda.h>
 #include	<cuda_runtime.h>
 
-extern "C"{
 #include	"allvars.h"
 #include	"proto.h"
-}
 
-#include	"gravtree.h"
+#include	"gravtree_kernel.cu"
 
-#define NEAREST(x) (((x)>boxhalf)?((x)-boxsize):(((x)<-boxhalf)?((x)+boxsize):(x)))
 
 extern	"C"{
 
@@ -37,12 +34,11 @@ static double	rcut, rcut2, asmth, asmthfac;
 
 static double	h, h_inv, h3_inv;
 
-void set_softenings(void){
+void cudaInit(){
+	cudaSetDevice(0);
+}
 
-	printf("Boxsize in soft: %g\n", All.BoxSize);
-	printf("Numpart in soft: %d\n", All.NumPart);
-	printf("Mass in soft: %g\n", All.Mass);
-	printf("G in soft: %g\n", All.G);
+void set_softenings(void){
 
 	if(All.SofteningHalo * All.Time > All.SofteningHaloMaxPhys){
 		All.SofteningTable	=	All.SofteningHaloMaxPhys / All.Time;
@@ -59,14 +55,17 @@ void set_softenings(void){
 	hSoftParam.h	=	h;
 	hSoftParam.h_inv	=	h_inv;
 	hSoftParam.h3_inv	=	h3_inv;
-
-	cudaMemcpyToSymbol(dSoftParam, &hSoftParam, sizeof(SOFTPARAM));
 }
+
 
 void gravity_tree(void){
 
 	set_softenings();
-	
+
+	cudaMemcpyToSymbol(dSoftParam, &hSoftParam, sizeof(SOFTPARAM));
+
+	printf("Tree building\n");
+
 	if(TreeReconstructFlag){
 
 		force_treebuild(NumPart);
@@ -74,20 +73,10 @@ void gravity_tree(void){
 //		TreeReconstructFlag	=	0;
 	}
 
+	printf("Copy data to device\n");
 	copyTreeToDevice();
 	copyPosToDevice();
 
-/*
-	int	i;
-
-	printf("Calculating short range force using tree method...\n");
-
-	for(i = 0; i < NumPart; ++i){
-		if(P[i].Ti_endstep == All.Ti_Current){
-			force_treeevaluate_shortrange(i);
-		}
-	}
-*/
 	dim3	dimBlock(numThreads, 1);
 	dim3	dimGrid;
 
@@ -99,11 +88,22 @@ void gravity_tree(void){
 		dimGrid.x	=	NumPart / numThreads;
 	}
 
-	force_treeevaluate_shortrange_device<<<dimGrid, dimBlock>>>(NumPart);
+	printf("calc force\n");
+	force_treeevaluate_shortrange_device<<<dimGrid, dimBlock>>>((float4 *)dPos, (float4 *)dGravAccel, dNodes, dExtnodes, dNextnode, dFather, NumPart);
 
+	printf("copy back\n");
 	copyAccelFromDevice();
 
 	printf("done!\n");
+
+	cudaError_t cudaError;
+	cudaError = cudaGetLastError();
+	if( cudaError != cudaSuccess )
+	{
+		fprintf(stderr, "CUDA Runtime API Error reported : %s\n", cudaGetErrorString(cudaError));
+		exit(EXIT_FAILURE);
+	}
+
 
 }
 
@@ -233,8 +233,8 @@ void force_treeallocate(int maxnodes, int maxpart){
 
 	Extnodes_base	=	(EXTNODE_BASE *) malloc((MaxNodes + 1) * sizeof(EXTNODE_BASE));
 
-	Nodes	=	Nodes_base - NumPart;
-	
+	Nodes		=	Nodes_base - NumPart;
+
 	Extnodes	=	Extnodes_base - NumPart;
 
 	Nextnode	=	(int *) malloc(NumPart * sizeof(int));
@@ -278,36 +278,41 @@ void force_treeallocate(int maxnodes, int maxpart){
 	cudaMalloc((void **) &dPos, memSize);
 	cudaMalloc((void **) &dGravAccel, memSize);
 
-	cudaMalloc((void **)dNodes, sizeof(NODE) * MaxNodes);
+	cudaMalloc((void **) &dNodes, sizeof(NODE) * MaxNodes);
+
 	dNodes	-=	NumPart;
 
-	cudaMalloc((void **)dExtnodes, sizeof(EXTNODE) * MaxNodes);
+	cudaMalloc((void **) &dExtnodes, sizeof(EXTNODE) * MaxNodes);
 	dExtnodes	-=	NumPart;
 
-	cudaMalloc((void **)dNextnode, sizeof(int) * NumPart);
-	cudaMalloc((void **)dFather, sizeof(int) * NumPart);
+	cudaMalloc((void **) &dNextnode, sizeof(int) * NumPart);
+	cudaMalloc((void **) &dFather, sizeof(int) * NumPart);
 
 	for(i = 0; i < NTAB; ++i){
 		hSimParam.shortrange_table[i]	=	shortrange_table[i];
 	}
 
 	hSimParam.boxsize	=	boxsize;
-	hSimParam.boxhalf	=	boxhalf;
-	hSimParam.to_grid_fac	=	to_grid_fac;
 	hSimParam.rcut		=	rcut;
 	hSimParam.rcut2		=	rcut2;
-	hSimParam.asmth		=	asmth;
 	hSimParam.asmthfac	=	asmthfac;
 	hSimParam.mass		=	header.Mass;
+	hSimParam.ErrTolTheta	=	All.ErrTolTheta;
 	hSimParam.G			=	All.G;
 
+	printf("setting param...\n");
+
+	printf("ErrTolTheta: %g\n", hSimParam.ErrTolTheta);
+
 	cudaMemcpyToSymbol(dSimParam, &hSimParam, sizeof(SIMPARAM));
+
+	printf("param done\n");
 
 }
 
 void force_treebuild(int npart){
 	
-	int		i, subnode, parent, numnodes;
+	int		i, subnode, parent;
 	int		nfree, th, nn;
 	NODE	* nfreep;
 	double	lenhalf;
@@ -429,11 +434,23 @@ void force_treebuild(int npart){
 	force_update_node_recursive(All.NumPart, -1, -1);
 
 	printf("last: %d\n", last);
+	printf("numnodes: %d\n", numnodes);
 
 	if(last >= All.NumPart)
 		Nodes[last].u.d.nextnode	=	-1;
 	else
 		Nextnode[last]	=	-1;
+
+	i	=	All.NumPart + 250;
+	printf("build: %g|%g|%g\t%g\t%d\t%d\t%d\t%d\n", 
+			Nodes[i].u.d.s[0], 
+			Nodes[i].u.d.s[1], 
+			Nodes[i].u.d.s[2], 
+			Nodes[i].u.d.mass, 
+			Nodes[i].u.d.bitflags, 
+			Nodes[i].u.d.sibling,
+			Nodes[i].u.d.nextnode,
+			Nodes[i].u.d.father);
 }
 
 void force_update_node_recursive(int no, int sib, int father){
@@ -555,6 +572,8 @@ void force_update_node_recursive(int no, int sib, int father){
 }
 
 void copyTreeToDevice(){
+
+	printf("copy numnodes: %d\n", numnodes);
 
 	cudaMemcpy((char *) &dNodes[NumPart], (void *) &Nodes[NumPart], numnodes * sizeof(NODE), cudaMemcpyHostToDevice);
 	

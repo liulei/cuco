@@ -123,13 +123,11 @@ typedef	struct	global_data{
 typedef struct tagSimParam{
 	float	shortrange_table[NTAB];
 	float	boxsize;
-	float	boxhalf;
-	float	to_grid_fac;
 	float	rcut;
 	float	rcut2;
-	float	asmth;
 	float	asmthfac;
 	float	mass;
+	float	ErrTolTheta;
 	float	G;
 }SIMPARAM;
 

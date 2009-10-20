@@ -13,15 +13,15 @@ void begrun(void){
 
 	set_units();
 
-	long_range_init();
+	cudaInit();
 
 	init();
 
-	init_drift_table();
+	long_range_init();
 
-#ifdef	LINKLIST
-	linklist_init();
-#endif
+    force_treeallocate(0.8 * NumPart, NumPart);
+
+	init_drift_table();
 
 	All.Ti_nextoutput	=	find_next_outputtime(All.Ti_Current);
 }

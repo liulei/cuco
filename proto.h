@@ -37,6 +37,7 @@ void	pm_init_periodic_free(void);
 int		get_timestep(int p);
 
 #ifdef	TREE
+void	cudaInit(void);
 void	set_softenings(void);
 void	gravity_tree(void);
 void	force_treeallocate(int maxnodes, int maxpart);
