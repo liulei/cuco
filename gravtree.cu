@@ -92,8 +92,10 @@ void gravity_tree(void){
 		dimGrid.x	=	NumPart / numThreads;
 	}
 
+	set_variable_device<<<1, 1>>>();
+
 	printf("calc force\n");
-	force_treeevaluate_shortrange_device<<<dimGrid, dimBlock>>>((float4 *)dPos, (float4 *)dGravAccel, dNodes, dExtnodes, dNextnode, dFather, NumPart);
+	force_treeevaluate_shortrange_device<<<dimGrid, dimBlock>>>((float4 *)dPos, (float4 *)dGravAccel, dNodes, dNextnode, NumPart);
 
 	printf("copy back\n");
 	copyAccelFromDevice();

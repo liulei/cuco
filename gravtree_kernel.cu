@@ -3,6 +3,8 @@
 
 #define NEAREST(x) (((x)>boxhalf)?((x)-boxsize):(((x)<-boxhalf)?((x)+boxsize):(x)))
 
+#define	BUSY	-2;
+
 texture<float4, 1, cudaReadModeElementType> dPosTex;
 texture<float4, 1, cudaReadModeElementType> dNodesTex;
 texture<int, 1, cudaReadModeElementType> dNextnodeTex;
@@ -11,18 +13,144 @@ __constant__ SIMPARAM	dSimParam;
 
 __constant__ SOFTPARAM	dSoftParam;
 
-__device__	float4	*Pos;
+__device__	static int	nfree, dNumNodes;
 
-//__global__ void force_treebuild_device(
-//					float4)
+__global__ void force_treebuild_device(
+					float4	*dPos,
+					NODE	*dNodes,
+					int		*dNextnode,
+					int		*dFather,
+					SUNS	*dSuns,
+					int		numParticles){
+	
+	int	index	=	blockIdx.y * gridDim.x * blockDim.x
+						+ blockIdx.x * blockDim.x + threadIdx.x;
+	if(index >= numParticles){
+		return;
+	}
+	
+	NODE	node, pnode;
+	SUNS	suns;
+
+	float4	pos		=	dPos[index];
+	
+	int		th	=	numParticles;
+	int	parent	=	-1;
+
+	while(1){
+		
+		if(th >= numParticles){
+			
+			node	=	dNodes[th];
+
+			subnode	=	0;
+			if(pos.x > node.center[0])
+				subnode	+=	1;
+			if(pos.y > node.center[1])
+				subnode	+=	2;
+			if(pos.z > node.center[2])
+				subnode	+=	4;
+
+			nn	=	atomicExch(&dSuns[th].suns[subnode], BUSY);
+			if(nn != BUSY){
+				if(nn >= 0){
+					parent	=	th;
+					th	=	nn;
+					atomicExch(&dSuns[th].suns[subnode], nn);
+				}else{
+					atomicExch(&dSuns[th].suns[subnode], i);
+					break;
+				}
+			}else{
+				continue;
+			}
+		
+		}else{
+			
+			nn	=	atomicExch(&dSuns[parent].suns[subnode], BUSY);
+			if(nn != BUSY){
+				
+				thisNfree	=	atomicAdd(&nfree, 1);
+				thisNfree++;
+
+				pnode		=	dNodes[parent];
+				node.len	=	0.5 * pnode.len;
+				lenhalf		=	0.25 * pnode.len;
+				
+				if(subnode & 1)
+					node.center[0]	=	pnode.center[0] + lenhalf;
+				else
+					node.center[0]	=	pnode.center[0] - lenhalf;
+
+				if(subnode & 2)
+					node.center[1]	=	pnode.center[1] + lenhalf;
+				else
+					node.center[1]	=	pnode.center[1] - lenhalf;
+
+				if(subnode & 4)
+					node.center[2]	=	pnode.center[2] + lenhalf;
+				else
+					node.center[2]	=	pnode.center[2] - lenhalf;
+
+				suns.suns[0]	=	-1;
+				suns.suns[1]	=	-1;
+				suns.suns[2]	=	-1;
+				suns.suns[3]	=	-1;
+				suns.suns[4]	=	-1;
+				suns.suns[5]	=	-1;
+				suns.suns[6]	=	-1;
+				suns.suns[7]	=	-1;
+
+				thSubnode	=	0;
+				thPos	=	dPos[th];
+				if(thPos.x > node.center[0])
+					thSubnode	+=	1;
+				if(thPos.y > node.center[1])
+					thSubnode	+=	2;
+				if(thPos.z > node.center[2])
+					thSubnode	+=	4;
+
+				suns.suns[thSubnode]	=	th;
+				
+				dNodes[thisNfree]	=	node;
+				dSuns[thisNfree]	=	suns;
+
+				th	=	thisNfree;
+
+				atomicAdd(&dNumNodes, 1);
+				atomicExch(&dSuns[parent].suns[subnode], thisNfree);
+
+			}else{
+				continue;
+			}
+		}
+	}
+}
+
+__global__ void set_variable_device(NODE *dNodes, SUNS *dSuns, int numParticles){
+	
+	NODE	node;
+	SUNS	suns;
+
+	node.len	=	boxsize;
+	for(i = 0; i < 3; ++i)
+		node.center[i]	=	boxhalf;
+	for(i = 0; i < 8; ++i)
+		suns.suns[i]	=	-1;
+	
+	nfree	=	numParticles;
+	dNodes[nfree]	=	node;
+	dSuns[nfree]	=	suns;
+	
+	dNumNodes	=	1;
+//	nfree++;
+}
 
 __global__ void force_treeevaluate_shortrange_device(
 						float4	*dPos,
 						float4	*dGravAccel,
 						NODE	*dNodes,
-						EXTNODE	*dExtnodes,
 						int		*dNextnode,
-						int		*dFather,
 						int 	numParticles){
 
 	uint	index	=	blockIdx.y * gridDim.x * blockDim.x
@@ -30,8 +158,6 @@ __global__ void force_treeevaluate_shortrange_device(
 	if(index >= numParticles){
 		return;
 	}
-	
-	Pos	=	dPos;
 
 //	NODE	node;
 	NODE_1	node_1;
@@ -76,7 +202,7 @@ __global__ void force_treeevaluate_shortrange_device(
 	acc.y	=	0.0;
 	acc.z	=	0.0;
 
-	pos	=	Pos[index];
+	pos	=	dPos[index];
 	
 	no	=	numParticles;
 
