@@ -55,7 +55,7 @@ $(EXEC)	:	$(OBJS) $(INCL)
 	$(CC) -c $^ $(CFLAGS) $(LIBS) -o $@
 
 %.cu.o	:	%.cu
-	$(NVCC) -c $^ $(CFLAGS) $(LIBS) -o $@ #-deviceemu
+	$(NVCC) -c -arch=sm_11 $^ $(CFLAGS) $(LIBS) -o $@ -Xptxas -v
 
 clean:
 	rm -f $(C_OBJS) $(CU_OBJS) $(CPP_OBJS) $(EXEC) *.linkinfo

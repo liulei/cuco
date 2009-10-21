@@ -12,7 +12,7 @@ void compute_accelerations(void){
 /* If long range kick needed, computer the long range force
  */
 	if(All.PM_Ti_endstep == All.Ti_Current){
-//		long_range_force();
+		long_range_force();
 	}
 
 /* Calculate the short range force by direct summation with linklist 

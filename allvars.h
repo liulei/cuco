@@ -154,6 +154,27 @@ typedef struct tagNODE{
 	}u;
 } NODE, NODE_BASE;
 
+typedef	struct tagSUNS{
+	int	suns[8];
+}SUNS;
+
+typedef struct tagNODE_1{
+	float	len;
+	float	center[3];
+}NODE_1;
+
+typedef struct tagNODE_2{
+	float	s[3];
+	float	mass;
+}NODE_2;
+
+typedef struct tagNODE_3{
+	int	bitflags;
+	int	sibling;
+	int	nextnode;
+	int	father;
+}NODE_3;
+
 typedef struct tagEXTNODE{
 	FLOAT	vs[3];
 }EXTNODE, EXTNODE_BASE;
@@ -181,10 +202,9 @@ extern	float	*hGravAccel;
 extern	float	*dPos;
 extern	float	*dGravAccel;
 extern	NODE	*dNodes;
-extern	NODE_BASE	*dNodes_base;
 extern	int		*dNextnode;
 extern	int		*dFather;
 extern	EXTNODE	*dExtnodes;
-extern	EXTNODE_BASE	*dExtnodes_base;
+extern	SUNS	*dSuns;
 
 #endif

@@ -14,7 +14,7 @@
 extern	"C"{
 
 static	int	maxThreads	=	32768;
-static	int	numThreads	=	256;
+static	int	numThreads	=	64;
 
 static	SIMPARAM	hSimParam;
 
@@ -78,7 +78,7 @@ void gravity_tree(void){
 	copyPosToDevice();
 
 	cudaBindTexture(0, dPosTex, dPos, NumPart * sizeof(float4));
-//	cudaBindTexture(0, dNodesTex, (void *)&dNodes[NumPart], numnodes * sizeof(NODE));
+	cudaBindTexture(0, dNodesTex, (void *)&dNodes[NumPart], numnodes * sizeof(NODE));
 	cudaBindTexture(0, dNextnodeTex, dNextnode, NumPart * sizeof(int));
 
 	dim3	dimBlock(numThreads, 1);
@@ -288,7 +288,10 @@ void force_treeallocate(int maxnodes, int maxpart){
 	dExtnodes	-=	NumPart;
 
 	cudaMalloc((void **) &dNextnode, sizeof(int) * NumPart);
+
 	cudaMalloc((void **) &dFather, sizeof(int) * NumPart);
+
+	cudaMalloc((void **) &dSuns, sizeof(SUNS) * NumPart);
 
 	for(i = 0; i < NTAB; ++i){
 		hSimParam.shortrange_table[i]	=	shortrange_table[i];

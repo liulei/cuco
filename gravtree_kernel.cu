@@ -4,12 +4,17 @@
 #define NEAREST(x) (((x)>boxhalf)?((x)-boxsize):(((x)<-boxhalf)?((x)+boxsize):(x)))
 
 texture<float4, 1, cudaReadModeElementType> dPosTex;
-//texture<NODE, 1, cudaReadModeElementType> dNodesTex;
+texture<float4, 1, cudaReadModeElementType> dNodesTex;
 texture<int, 1, cudaReadModeElementType> dNextnodeTex;
 
 __constant__ SIMPARAM	dSimParam;
 
 __constant__ SOFTPARAM	dSoftParam;
+
+__device__	float4	*Pos;
+
+//__global__ void force_treebuild_device(
+//					float4)
 
 __global__ void force_treeevaluate_shortrange_device(
 						float4	*dPos,
@@ -25,14 +30,19 @@ __global__ void force_treeevaluate_shortrange_device(
 	if(index >= numParticles){
 		return;
 	}
+	
+	Pos	=	dPos;
 
-	NODE	node;
+//	NODE	node;
+	NODE_1	node_1;
+	NODE_2	node_2;
+	NODE_3	node_3;
 	int		no, tabindex;
 	float	r2, dx, dy, dz, r, fac, u;
 	float	eff_dist, dist;
 	float4	pos, pos_no, acc;
 
-	float3	test;
+	float4	temp;
 	
 	float	rcut	=	dSimParam.rcut;
 	float	rcut2	=	dSimParam.rcut2;
@@ -66,7 +76,7 @@ __global__ void force_treeevaluate_shortrange_device(
 	acc.y	=	0.0;
 	acc.z	=	0.0;
 
-	pos	=	dPos[index];
+	pos	=	Pos[index];
 	
 	no	=	numParticles;
 
@@ -94,14 +104,23 @@ __global__ void force_treeevaluate_shortrange_device(
 		
 		}else{
 
-			node	=	dNodes[no];
+//			node	=	dNodes[no];
 //			node	=	tex1Dfetch(dNodesTex, no);
+
+			temp	=	tex1Dfetch(dNodesTex, 3 * (no - numParticles));
+			node_1	=	*(NODE_1 *) &temp;
+
+			temp	=	tex1Dfetch(dNodesTex, 3 * (no - numParticles) + 1);
+			node_2	=	*(NODE_2 *) &temp;
+
+			temp	=	tex1Dfetch(dNodesTex, 3 * (no - numParticles) + 2);
+			node_3	=	*(NODE_3 *) &temp;
+
+			mass	=	node_2.mass;
 			
-			mass	=	node.u.d.mass;
-			
-			dx	=	node.u.d.s[0] - pos.x;
-			dy	=	node.u.d.s[1] - pos.y;
-			dz	=	node.u.d.s[2] - pos.z;
+			dx	=	node_2.s[0] - pos.x;
+			dy	=	node_2.s[1] - pos.y;
+			dz	=	node_2.s[2] - pos.z;
 
 			dx	=	NEAREST(dx);
 			dy	=	NEAREST(dy);
@@ -111,33 +130,33 @@ __global__ void force_treeevaluate_shortrange_device(
 
 			if(r2 > rcut2){
 
-				eff_dist	=	rcut + 0.5 * node.len;
+				eff_dist	=	rcut + 0.5 * node_1.len;
 
-				dist	=	NEAREST(node.center[0] - pos.x);
+				dist	=	NEAREST(node_1.center[0] - pos.x);
 				if(dist < -eff_dist || dist > eff_dist){
-					no	=	node.u.d.sibling;
+					no	=	node_3.sibling;
 					continue;
 				}
 
-				dist	=	NEAREST(node.center[1] - pos.y);
+				dist	=	NEAREST(node_1.center[1] - pos.y);
 				if(dist < -eff_dist || dist > eff_dist){
-					no	=	node.u.d.sibling;
+					no	=	node_3.sibling;
 					continue;
 				}
 
-				dist	=	NEAREST(node.center[2] - pos.z);
+				dist	=	NEAREST(node_1.center[2] - pos.z);
 				if(dist < -eff_dist || dist > eff_dist){
-					no	=	node.u.d.sibling;
+					no	=	node_3.sibling;
 					continue;
 				}
 			}
 			
-			if(node.len * node.len > r2 * ErrTolTheta * ErrTolTheta){
-				no	=	node.u.d.nextnode;
+			if(node_1.len * node_1.len > r2 * ErrTolTheta * ErrTolTheta){
+				no	=	node_3.nextnode;
 				continue;
 			}
 
-			no	=	node.u.d.sibling;
+			no	=	node_3.sibling;
 		}
 
 		r	=	__fsqrt_rn(r2);
