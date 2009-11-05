@@ -8,13 +8,15 @@
 #include	"allvars.h"
 #include	"proto.h"
 
-#include	"gravtree_kernel.cu"
+#define	maxThreads	32768
+#define	numThreads	32
 
+#include	"gravtree7_kernel.cu"
 
 extern	"C"{
 
-static	int	maxThreads	=	32768;
-static	int	numThreads	=	64;
+//static	int	maxThreads	=	32768;
+//static	int	numThreads	=	256;
 
 static	SIMPARAM	hSimParam;
 
@@ -34,6 +36,11 @@ static double	rcut, rcut2, asmth, asmthfac;
 
 static double	h, h_inv, h3_inv;
 
+static	SUNS	*hSuns;
+
+static	int		*pNumNodes;
+
+static	int		hNumNodes;
 void cudaInit(){
 	cudaSetDevice(0);
 }
@@ -64,25 +71,91 @@ void gravity_tree(void){
 
 	cudaMemcpyToSymbol(dSoftParam, &hSoftParam, sizeof(SOFTPARAM));
 
-	printf("Tree building\n");
-
-	if(TreeReconstructFlag){
-
-		force_treebuild(NumPart);
-
-//		TreeReconstructFlag	=	0;
-	}
+	dim3	dimBlock(numThreads, 1);
+	dim3	dimGrid;
 
 	printf("Copy data to device\n");
-	copyTreeToDevice();
+
+	printf("Tree building\n");
+
 	copyPosToDevice();
+
+	TreeReconstructFlag	=	1;
+	if(TreeReconstructFlag){
+
+		set_variable_device<<<1, 1>>>(dNodes, dSuns, NumPart);
+
+		if(NumPart > maxThreads){
+			dimGrid.y	=	NumPart / maxThreads;
+			dimGrid.x	=	maxThreads / numThreads;
+		}else{
+			dimGrid.y	=	1;
+			dimGrid.x	=	NumPart / numThreads;
+		}
+
+		force_treebuild_device<<<dimGrid, dimBlock>>>(
+								(float4 *)dPos,
+								dNodes,
+								dSuns,
+								NumPart);
+//		cudaThreadSynchronize();
+
+		printf("read node number\n");
+		read_tree_information<<<1, 1>>>(pNumNodes);
+		cudaMemcpy((void *)&hNumNodes, (char *)pNumNodes, sizeof(int), cudaMemcpyDeviceToHost);
+		hNumNodes	=	hNumNodes - NumPart + 1;
+		printf("hNumNodes: %d\n", hNumNodes);
+
+		if(hNumNodes > maxThreads){
+			dimGrid.y	=	hNumNodes / maxThreads;
+			if(dimGrid.y * maxThreads < hNumNodes)
+				dimGrid.y++;
+			dimGrid.x	=	maxThreads / numThreads;
+		}else{
+			dimGrid.y	=	1;
+			dimGrid.x	=	hNumNodes / numThreads;
+			if(dimGrid.x * numThreads < hNumNodes)
+				dimGrid.x++;
+		}
+
+		printf("dimBlock: (%d, %d)\n", dimBlock.x, dimBlock.y);
+		printf("dimGrid: (%d, %d)\n", dimGrid.x, dimGrid.y);
+
+		update_tree_device<<<dimGrid, dimBlock>>>(
+								(float4 *)dPos,
+								dNodes,
+								dSuns,
+								NumPart);
+
+		cudaThreadSynchronize();
+
+		set_father_device<<<dimGrid, dimBlock>>>(
+								dNodes,
+								dSuns,
+								NumPart);
+	
+		cudaThreadSynchronize();
+//		copyAccelFromDevice();
+
+		update_treenext_device<<<dimGrid, dimBlock>>>(
+								(float4 *)dPos,
+								dNodes,
+								dSuns,
+								dNextnode,
+								NumPart);
+
+//		force_treebuild(NumPart);
+//		copyTreeToDevice();
+	}
+
+//	copyTreeToDevice();
+
+	printf("calc force\n");
+
 
 	cudaBindTexture(0, dPosTex, dPos, NumPart * sizeof(float4));
 	cudaBindTexture(0, dNodesTex, (void *)&dNodes[NumPart], numnodes * sizeof(NODE));
 	cudaBindTexture(0, dNextnodeTex, dNextnode, NumPart * sizeof(int));
-
-	dim3	dimBlock(numThreads, 1);
-	dim3	dimGrid;
 
 	if(NumPart > maxThreads){
 		dimGrid.y	=	NumPart / maxThreads;
@@ -91,16 +164,19 @@ void gravity_tree(void){
 		dimGrid.y	=	1;
 		dimGrid.x	=	NumPart / numThreads;
 	}
+/*
+	force_treeevaluate_shortrange_device<<<dimGrid, dimBlock>>>(
+										(float4 *)dPos, 
+										(float4 *)dGravAccel, 
+										dNodes, 
+										dNextnode, 
+										NumPart);
+*/
+	cudaUnbindTexture(dPosTex);
+	cudaUnbindTexture(dNodesTex);
+	cudaUnbindTexture(dNextnodeTex);
 
-	set_variable_device<<<1, 1>>>();
-
-	printf("calc force\n");
-	force_treeevaluate_shortrange_device<<<dimGrid, dimBlock>>>((float4 *)dPos, (float4 *)dGravAccel, dNodes, dNextnode, NumPart);
-
-	printf("copy back\n");
 	copyAccelFromDevice();
-
-	printf("done!\n");
 
 	cudaError_t cudaError;
 	cudaError = cudaGetLastError();
@@ -109,8 +185,6 @@ void gravity_tree(void){
 		fprintf(stderr, "CUDA Runtime API Error reported : %s\n", cudaGetErrorString(cudaError));
 		exit(EXIT_FAILURE);
 	}
-
-
 }
 
 void force_treeevaluate_shortrange(int target){
@@ -247,6 +321,7 @@ void force_treeallocate(int maxnodes, int maxpart){
 
 	Father	=	(int *)malloc(NumPart * sizeof(int));
 
+
 	int		i;
 	double	u;
 
@@ -277,6 +352,9 @@ void force_treeallocate(int maxnodes, int maxpart){
 
 	hGravAccel	=	(float *)malloc(sizeof(float) * 4 * NumPart);
 
+	hSuns	=	(SUNS *)malloc(NumPart * sizeof(SUNS));
+	hSuns	-=	NumPart;
+
 	int	memSize	=	sizeof(float) * 4 * NumPart;
 
 	cudaMalloc((void **) &dPos, memSize);
@@ -294,6 +372,9 @@ void force_treeallocate(int maxnodes, int maxpart){
 	cudaMalloc((void **) &dFather, sizeof(int) * NumPart);
 
 	cudaMalloc((void **) &dSuns, sizeof(SUNS) * NumPart);
+	dSuns	-=	NumPart;
+
+	cudaMalloc((void **) &pNumNodes, sizeof(int));
 
 	for(i = 0; i < NTAB; ++i){
 		hSimParam.shortrange_table[i]	=	shortrange_table[i];
@@ -449,8 +530,12 @@ void force_update_node_recursive(int no, int sib, int father){
 
 	if(no >= All.NumPart){
 	/* This is a node. */
-		for(j = 0; j < 8; ++j)
+		for(j = 0; j < 8; ++j){
 			suns[j]	=	Nodes[no].u.suns[j];
+			printf("subnode %d of node %d: %d\n", j, no, suns[j]);
+		}
+			
+		printf("node %d: last: %d\n", no, last);
 		
 		if(last >= 0){
 
@@ -485,7 +570,8 @@ void force_update_node_recursive(int no, int sib, int father){
 					nextsib	=	pp;
 				else
 					nextsib	=	sib;
-
+				
+				printf("%d: enter %d, last: %d\n\n", no, p, last);
 				force_update_node_recursive(p, nextsib, no);
 
 				if(p >= All.NumPart){
@@ -544,6 +630,8 @@ void force_update_node_recursive(int no, int sib, int father){
 	
 	}else{
 		
+		printf("particle %d: last: %d\n\n", no, last);
+
 		if(last >= 0){
 			
 			if(last >= All.NumPart)
@@ -565,11 +653,11 @@ void copyTreeToDevice(){
 
 	cudaMemcpy((char *) &dNodes[NumPart], (void *) &Nodes[NumPart], numnodes * sizeof(NODE), cudaMemcpyHostToDevice);
 	
-	cudaMemcpy((char *) &dExtnodes[NumPart], (void *) &Extnodes[NumPart], numnodes * sizeof(EXTNODE), cudaMemcpyHostToDevice);
+//	cudaMemcpy((char *) &dExtnodes[NumPart], (void *) &Extnodes[NumPart], numnodes * sizeof(EXTNODE), cudaMemcpyHostToDevice);
 
 	cudaMemcpy((char *) dNextnode, (void *)Nextnode, NumPart * sizeof(int), cudaMemcpyHostToDevice);
 
-	cudaMemcpy((char *) dFather, (void *)Father, NumPart * sizeof(int), cudaMemcpyHostToDevice);
+//	cudaMemcpy((char *) dFather, (void *)Father, NumPart * sizeof(int), cudaMemcpyHostToDevice);
 
 }
 
@@ -595,9 +683,103 @@ void copyAccelFromDevice(){
 
 	int	i;
 	for(i = 0; i < NumPart; ++i){
+/*		
 		P[i].GravAccel[0]	=	hGravAccel4[i].x;
 		P[i].GravAccel[1]	=	hGravAccel4[i].y;
 		P[i].GravAccel[2]	=	hGravAccel4[i].z;
+*/
+		P[i].GravAccel[0]	=	0.0;
+		P[i].GravAccel[0]	=	0.0;
+		P[i].GravAccel[0]	=	0.0;
+
+	}
+
+	cudaMemcpy((void *)&hSuns[NumPart], (char *)&dSuns[NumPart], hNumNodes * sizeof(SUNS), cudaMemcpyDeviceToHost);
+
+	cudaMemcpy((void *)&Nodes[NumPart], (char *)&dNodes[NumPart], hNumNodes * sizeof(NODE), cudaMemcpyDeviceToHost);
+
+	cudaMemcpy((void *)Nextnode, (char *)dNextnode, NumPart * sizeof(int), cudaMemcpyDeviceToHost);
+
+	int	j, p;
+	int	visit[NUMLIMIT];
+
+	for(i = NumPart; i < NumPart + hNumNodes; ++i){
+		for(j = 0; j < 8; ++j){
+			
+			p	=	hSuns[i].suns[j];
+
+			if(p < -1 || p >= NumPart + hNumNodes)
+				printf("subnode %d of node %d: %d\n", j, i, p);
+
+			if(p < NumPart && p != -1){
+				visit[p]	=	250;
+			}
+		}
+	}
+
+	for(i = 0; i < NUMLIMIT; ++i){
+		if(visit[i] != 250){
+//			printf("particles %d not inserted!\n", i);
+		}
+	}
+
+	int	pflag	=	0;
+	for(i = NumPart; i < NumPart + hNumNodes; ++i){
+		p	=	Nodes[i].u.d.father;
+		if(p < NumPart || p > NumPart + hNumNodes - 1){
+			printf("node %d (%d): father: %d\n", i, i - NumPart, p);
+			pflag	=	1;
+		}
+	}
+
+	if(pflag == 1){
+
+		for(i = NumPart; i < NumPart + hNumNodes; ++i){
+			for(j = 0; j < 8; ++j){
+			
+				p	=	hSuns[i].suns[j];
+				if(p == NumPart){
+//					printf("subnode %d of node %d: %d\n", j, i, hSuns[i].suns[j]);
+				}
+
+			}
+//			printf("center of node %d: %g|%g|%g\n\n", i,
+//					Nodes[i].center[0], 
+//					Nodes[i].center[1], 
+//					Nodes[i].center[2]);
+		}
+	}
+		
+
+//			if(hSuns[i].suns[j] >= NumPart){
+//				printf("subnode %d of Node %d: %d\n", j, i, hSuns[i].suns[j]);
+//			}
+	
+	int	no, nott;
+	i	=	0;
+	no	=	NumPart;
+	while(no != -1){
+		printf("i: %d\tno: %d\t", i, no);
+		if(no >= NumPart){
+			nott	=	no;
+			no	=	Nodes[no].u.d.nextnode;
+			printf("sibling: %d\tnext node: %d\n", Nodes[nott].u.d.sibling, no);
+			for(j = 0; j < 8; ++j){
+				printf("subnode %d of node %d: %d\n", j, nott, hSuns[nott].suns[j]);
+			}
+		}else{
+			no	=	Nextnode[no];
+			printf("next particle: %d\n", no);
+		}
+		i++;
+	}
+	no	=	32773;
+	for(j = 0; j < 8; ++j){
+		p	=	hSuns[no].suns[j];
+		if(p > NumPart){
+			printf("subnode %d of node %d: %d, sibling: %d\n",
+					j, no, p, Nodes[p].u.d.sibling);
+		}
 	}
 }
 

@@ -19,7 +19,7 @@ void begrun(void){
 
 	long_range_init();
 
-    force_treeallocate(0.8 * NumPart, NumPart);
+    force_treeallocate(2 * NumPart, NumPart);
 
 	init_drift_table();
 
