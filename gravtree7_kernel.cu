@@ -25,7 +25,7 @@ __global__ void force_treebuild_device(
 	
 	int	index	=	blockIdx.y * gridDim.x * blockDim.x
 						+ blockIdx.x * blockDim.x + threadIdx.x;
-	if(index >= NUMLIMIT){
+	if(index >= numParticles){
 		return;
 	}
 
@@ -33,8 +33,8 @@ __global__ void force_treebuild_device(
 
 	if(threadIdx.x == 0){
 		count	=	0;
-		__threadfence_block();
 	}
+	__threadfence_block();
 
 	NODE	node, pnode;
 	SUNS	suns;
@@ -49,7 +49,6 @@ __global__ void force_treebuild_device(
 
 	while(count < blockDim.x){
 
-//		__threadfence_block();
 		__syncthreads();
 		
 		if(threadIdx.x == count)
@@ -66,23 +65,16 @@ __global__ void force_treebuild_device(
 				subnode	+=	4;
 			
 			nn	=	atomicExch(&dSuns[th].suns[subnode], BUSY);
-			__threadfence();
 			if(nn != BUSY){
 				if(nn >= 0){
 					parent	=	th;
 					th	=	nn;
 					atomicExch(&dSuns[parent].suns[subnode], nn);
-					__threadfence();
 				}
 				if(nn < 0){
 					count++;
 					atomicExch(&dSuns[th].suns[subnode], index);
-					__threadfence();
 				}
-			}
-			if(nn == BUSY){
-				th		=	numParticles;
-				parent	=	-1;
 			}
 		}
 			
@@ -90,12 +82,12 @@ __global__ void force_treebuild_device(
 		if(th < numParticles){
 			
 			nn	=	atomicExch(&dSuns[parent].suns[subnode], BUSY);
-//			__threadfence();
 			if(nn != BUSY){
+
+				nn	=	atomicExch(&dSuns[parent].suns[subnode], BUSY);
 				
 				thisNfree	=	atomicAdd(&nfree, 1);
 				atomicAdd(&dNumNodes, 1);
-//				__threadfence();
 				thisNfree++;
 
 				pnode		=	dNodes[parent];
@@ -149,9 +141,15 @@ __global__ void force_treebuild_device(
 				dSuns[thisNfree]	=	suns;
 
 				th	=	thisNfree;
-
+/*
+				nn	=	atomicExch(&dSuns[parent].suns[subnode], BUSY);
+				if(nn != BUSY){
+					parent	=	-1;
+					th	=	numParticles;
+					continue;
+				}
+*/
 				atomicExch(&dSuns[parent].suns[subnode], thisNfree);
-//				__threadfence();
 			}
 
 			if(nn == BUSY){
@@ -172,7 +170,7 @@ __global__ void update_tree_device(
 							SUNS	*dSuns, 
 							int		numParticles){
 
-	__shared__ int	flag[64];
+	__shared__ int	flag[numThreads];
 
 	flag[threadIdx.x]	=	-1;
 	__syncthreads();
@@ -181,9 +179,6 @@ __global__ void update_tree_device(
 	int	blockIndex	=	blockIdx.y * gridDim.x + blockIdx.x;
 	int	index	=	(numBlocks - 1 - blockIndex) * blockDim.x
 						+ threadIdx.x;
-
-//	int	index	=	blockIdx.y * gridDim.x * blockDim.x
-//						+ blockIdx.x * blockDim.x + threadIdx.x;
 
 	if(index < dNumNodes){
 		flag[threadIdx.x]	=	0;
@@ -196,7 +191,6 @@ __global__ void update_tree_device(
 	int	ready	=	0;
 	int	activeThreads	=	0;
 	int	count	=	0;
-	int	done	=	0;
 	float	particleMass	=	dSimParam.mass;
 	float	mass	=	0.0;
 	float	s[3];
@@ -215,12 +209,10 @@ __global__ void update_tree_device(
 	__syncthreads();
 	if(index < numParticles + dNumNodes)
 		suns	=	dSuns[index];
+
 	while(count	< activeThreads){
 
-		__syncthreads();
-		__threadfence_block();
-
-		if(index < numParticles + dNumNodes && done == 0){
+		if(index < numParticles + dNumNodes && flag[threadIdx.x] == 0){
 			ready	=	1;
 			for(i = 0; i < 8; ++i){
 				if(suns.suns[i] >= numParticles){
@@ -264,8 +256,6 @@ __global__ void update_tree_device(
 
 				dNodes[index].u.d.bitflags	=	1;
 
-				done	=	1;
-					
 				flag[threadIdx.x]	=	1;
 			}
 		}
@@ -310,16 +300,16 @@ __global__ void update_treenext_device(
 							SUNS	*dSuns, 
 							int		*dNextnode,
 							int		numParticles){
-	__shared__ int	flagN[64];
+	__shared__ int	flag[numThreads];
 
-	flagN[threadIdx.x]	=	-1;
+	flag[threadIdx.x]	=	-1;
 	__syncthreads();
 
 	int	index	=	blockIdx.y * gridDim.x * blockDim.x
 						+ blockIdx.x * blockDim.x + threadIdx.x;
 	
 	if(index < dNumNodes){
-		flagN[threadIdx.x]	=	0;
+		flag[threadIdx.x]	=	0;
 	}
 	__syncthreads();
 
@@ -327,9 +317,8 @@ __global__ void update_treenext_device(
 
 	int	i, j, jj, p, pp, nextsib, father, bitflags;
 	int	activeThreads	=	0;
-	int	countT	=	0;
-	int	done	=	0;
-	SUNS	suns;
+	int	count	=	0;
+	SUNS	suns, sunsFather;
 
 	if(index < numParticles + dNumNodes)	
 		suns	=	dSuns[index];
@@ -356,44 +345,56 @@ __global__ void update_treenext_device(
 	__threadfence();
 
 	for(i = 0; i < blockDim.x; ++i){
-		if(flagN[i] == 0){
+		if(flag[i] == 0){
 			activeThreads++;
 		}
 	}
 
-	__threadfence();
-	
-	if(index < numParticles + dNumNodes)
+	if(index < numParticles + dNumNodes){
 		father	=	dNodes[index].u.d.father;
+		sunsFather	=	dSuns[father];
+	}
+	__syncthreads();	
 
-	__syncthreads();
 
-	while(countT < activeThreads){
-		__threadfence();
+	while(count < activeThreads){
 		__syncthreads();
-//		__threadfence_block();
+		__threadfence();
 		
-		if((index < numParticles + dNumNodes) && (flagN[threadIdx.x] == 0)){
+		if((index < numParticles + dNumNodes) && (flag[threadIdx.x] == 0)){
 			
 			bitflags	=	dNodes[father].u.d.bitflags;
 			if(bitflags == 1 || index == numParticles){
 
-				__threadfence();
-
 				for(j = 0; j < 8; ++j){
-//					if(suns.suns[j] >= 0){
-					if(dSuns[index].suns[j] >= 0){
+					if(suns.suns[j] >= 0){
 						break;
 					}
 				}
-				dNodes[index].u.d.nextnode	=	dSuns[index].suns[j];
+				dNodes[index].u.d.nextnode	=	suns.suns[j];
 				
+				for(j = 0; j < 8; ++j){
+					if(sunsFather.suns[j] == index){
+						break;
+					}
+				}
+
+				for(jj = j + 1; jj < 8; ++jj){
+					if(sunsFather.suns[jj] >= 0){
+						break;
+					}
+				}
+
+				if(jj < 8)
+					dNodes[index].u.d.sibling	=	sunsFather.suns[jj];
+				if(jj >= 8)
+					dNodes[index].u.d.sibling	=	dNodes[father].u.d.sibling;
 
 				for(j = 0; j < 8; ++j){
-					p	=	dSuns[index].suns[j];
-					if(p >= 0){
+					p	=	suns.suns[j];
+					if(p >= 0 && p < numParticles){
 						for(jj = j + 1; jj < 8; ++jj){
-							pp	=	dSuns[index].suns[jj];
+							pp	=	suns.suns[jj];
 							if(pp >= 0){
 								break;
 							}
@@ -404,30 +405,20 @@ __global__ void update_treenext_device(
 						if(jj >= 8)
 							nextsib	=	dNodes[index].u.d.sibling;
 
-						if(p < numParticles){
-//							dNextnode[p]	=	nextsib;
-							atomicExch(&dNextnode[p], nextsib);
-						}
-
-						if(p >= numParticles){
-//							dNodes[p].u.d.sibling	=	nextsib;
-							atomicExch(&dNodes[p].u.d.sibling, nextsib);
-						}
-						__threadfence();
+						dNextnode[p]	=	nextsib;
 					}
 				}
 
 				dNodes[index].u.d.bitflags	=	1;
-				done	=	1;
-				flagN[threadIdx.x]	=	1;
+				flag[threadIdx.x]	=	1;
 			}
 		}
 		
 		__syncthreads();
-		countT	=	0;
+		count	=	0;
 		for(i = 0; i < activeThreads; ++i){
-			if(flagN[i] == 1){
-				countT++;
+			if(flag[i] == 1){
+				count++;
 			}
 		}
 	}
