@@ -54,7 +54,7 @@ $(EXEC)	:	$(OBJS) $(INCL)
 %.cpp.o	:	%.cpp
 	$(CC) -c $^ $(CFLAGS) $(LIBS) -o $@
 
-gravtree.cu.o	:	gravtree.cu gravtree7_kernel.cu
+gravtree.cu.o	:	gravtree.cu gravtree_kernel.cu
 	$(NVCC) -c gravtree.cu -arch sm_11 $(CFLAGS) $(LIBS) -o $@ -Xptxas -v #-deviceemu
 
 clean:

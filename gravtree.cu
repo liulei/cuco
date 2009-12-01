@@ -11,7 +11,7 @@
 #define	maxThreads	32768
 #define	numThreads	64
 
-#include	"gravtree7_kernel.cu"
+#include	"gravtree_kernel.cu"
 
 extern	"C"{
 
@@ -662,6 +662,11 @@ void copyPosToDevice(){
 		hPos4[i].x	=	P[i].Pos[0];
 		hPos4[i].y	=	P[i].Pos[1];
 		hPos4[i].z	=	P[i].Pos[2];
+		if(P[i].Ti_endstep == All.Ti_Current){
+			hPos4[i].w	=	250.0;
+		}else{
+			hPos4[i].w	=	-250.0;
+		}
 	}
 
 	cudaMemcpy((char *)dPos, (void *)hPos, NumPart * sizeof(float4), cudaMemcpyHostToDevice);

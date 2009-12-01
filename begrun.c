@@ -56,7 +56,7 @@ void read_parameter_file(void){
 	All.TimeBegin	=	0.0909; /* z=10 */
 	All.TimeMax		=	1.0;
 
-	strcpy(All.InitCondFile, "/home/liulei/program/N-body/ic/ic_32.cuco");
+	strcpy(All.InitCondFile, "ic/ic_32.cuco");
 	strcpy(All.OutputDir, "output_32");
 	strcpy(All.SnapshotFileBase, "cuco_32");
 	strcpy(All.OutputListFilename, "output_32/list_32.txt");
