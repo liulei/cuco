@@ -82,7 +82,7 @@ void gravity_tree(void){
 
 	TreeReconstructFlag	=	1;
 	if(TreeReconstructFlag){
-
+/*
 		set_variable_device<<<1, 1>>>(dNodes, dSuns, NumPart);
 
 		if(NumPart > maxThreads){
@@ -144,8 +144,9 @@ void gravity_tree(void){
 								dNextnode,
 								NumPart);
 
-//		force_treebuild(NumPart);
-//		copyTreeToDevice();
+*/
+		force_treebuild(NumPart);
+		copyTreeToDevice();
 	}
 
 //	copyTreeToDevice();
@@ -690,7 +691,7 @@ void copyAccelFromDevice(){
 		P[i].GravAccel[0]	=	0.0;
 */
 	}
-
+/*
 	cudaMemcpy((void *)&hSuns[NumPart], (char *)&dSuns[NumPart], hNumNodes * sizeof(SUNS), cudaMemcpyDeviceToHost);
 
 	cudaMemcpy((void *)&Nodes[NumPart], (char *)&dNodes[NumPart], hNumNodes * sizeof(NODE), cudaMemcpyDeviceToHost);
@@ -753,7 +754,7 @@ void copyAccelFromDevice(){
 //			}
 	
 	int	no, nott;
-/*
+
 	no	=	32768;
 	for(j = 0; j < 8; ++j){
 		p	=	hSuns[no].suns[j];
@@ -762,7 +763,7 @@ void copyAccelFromDevice(){
 					j, no, p, Nodes[p].u.d.sibling);
 		}
 	}
-*/
+
 	i	=	0;
 	no	=	NumPart;
 	while(no  >= 0){
@@ -780,6 +781,7 @@ void copyAccelFromDevice(){
 		}
 		i++;
 	}
+*/
 }
 
 }
