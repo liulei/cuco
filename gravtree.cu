@@ -9,7 +9,7 @@
 #include	"proto.h"
 
 #define	maxThreads	32768
-#define	numThreads	64
+#define	numThreads	32
 
 #include	"gravtree_kernel.cu"
 
@@ -82,7 +82,7 @@ void gravity_tree(void){
 
 	TreeReconstructFlag	=	1;
 	if(TreeReconstructFlag){
-/*
+
 		set_variable_device<<<1, 1>>>(dNodes, dSuns, NumPart);
 
 		if(NumPart > maxThreads){
@@ -135,7 +135,6 @@ void gravity_tree(void){
 								NumPart);
 	
 		cudaThreadSynchronize();
-//		copyAccelFromDevice();
 
 		update_treenext_device<<<dimGrid, dimBlock>>>(
 								(float4 *)dPos,
@@ -144,9 +143,10 @@ void gravity_tree(void){
 								dNextnode,
 								NumPart);
 
-*/
+/*
 		force_treebuild(NumPart);
 		copyTreeToDevice();
+*/
 	}
 
 //	copyTreeToDevice();
@@ -691,7 +691,7 @@ void copyAccelFromDevice(){
 		P[i].GravAccel[0]	=	0.0;
 */
 	}
-/*
+
 	cudaMemcpy((void *)&hSuns[NumPart], (char *)&dSuns[NumPart], hNumNodes * sizeof(SUNS), cudaMemcpyDeviceToHost);
 
 	cudaMemcpy((void *)&Nodes[NumPart], (char *)&dNodes[NumPart], hNumNodes * sizeof(NODE), cudaMemcpyDeviceToHost);
@@ -717,7 +717,7 @@ void copyAccelFromDevice(){
 
 	for(i = 0; i < NUMLIMIT; ++i){
 		if(visit[i] != 250){
-//			printf("particles %d not inserted!\n", i);
+			printf("particles %d not inserted!\n", i);
 		}
 	}
 
@@ -781,7 +781,7 @@ void copyAccelFromDevice(){
 		}
 		i++;
 	}
-*/
+
 }
 
 }

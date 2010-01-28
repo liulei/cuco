@@ -63,7 +63,8 @@ __global__ void force_treebuild_device(
 				subnode	+=	2;
 			if(pos.z > node.center[2])
 				subnode	+=	4;
-			
+
+
 			nn	=	atomicExch(&dSuns[th].suns[subnode], BUSY);
 			if(nn != BUSY){
 				if(nn >= 0){
@@ -75,7 +76,10 @@ __global__ void force_treebuild_device(
 					count++;
 					atomicExch(&dSuns[th].suns[subnode], index);
 				}
+			}else{
+				continue;
 			}
+			
 		}
 			
 		if(threadIdx.x == count)
@@ -141,14 +145,7 @@ __global__ void force_treebuild_device(
 				dSuns[thisNfree]	=	suns;
 
 				th	=	thisNfree;
-/*
-				nn	=	atomicExch(&dSuns[parent].suns[subnode], BUSY);
-				if(nn != BUSY){
-					parent	=	-1;
-					th	=	numParticles;
-					continue;
-				}
-*/
+
 				atomicExch(&dSuns[parent].suns[subnode], thisNfree);
 			}
 
